@@ -20,4 +20,8 @@ echo OSGLOGIN=\"USERNAME\" >> CREDENTIALS.py
 echo OSGNODE=\"loginXX.osgconnect.net\" >> CREDENTIALS.py
 echo \\n\# Comma-separated list of all usernames to check >> CREDENTIALS.py
 echo USERS_TO_CHECK=[\"EXAMPLEUSER1\", \"EXAMPLEUSER2\"] >> CREDENTIALS.py
+echo \\n\# Length of time (in minutes) between refresh cycles >> CREDENTIALS.py
+echo REFRESH_TIME=10 >> CREDENTIALS.py
+echo \\n\# 18 digit ID of status channel, can be found on Discord >> CREDENTIALS.py
+echo STATUS_CHANNEL_ID=000000000000000000 >> CREDENTIALS.py
 
