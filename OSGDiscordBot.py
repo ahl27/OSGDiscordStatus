@@ -51,9 +51,7 @@ def open_ssh_connection():
 def MSG_all_user_summaries(client, usernames_lst):
   if client is None:
     return("Error: SSH Client not established.")
-  longestuser = max([len(user) for user in usernames_lst])
-  longestuser = max(8, longestuser)
-  formatstr = "{:>" + str(longestuser) + "} | {:>7} | {:>6} | {:>6} | {:>7} | {:>7}"
+  formatstr = "{:>10} | {:>7} | {:>6} | {:>6} | {:>7} | {:>7}"
   totalmsg = '```\n' + formatstr.format("USERNAME", "DONE","RUN","IDLE","HELD","TOTAL") + '\n'
   totalmsg += '-'*(longestuser + 15 + 7 + 6 + 6 + 7 + 7) + '\n'
   for username in usernames_lst:
@@ -66,8 +64,10 @@ def MSG_user_summary(client, username, formatstr):
   if client is None:
     return("Error: SSH Client not established.")
   jobs, total = get_jobs_for_user(client, username)
-  # extra tab for usernames because they can be long
-  msg = formatstr.format(username, total['done'], 
+  if len(username) > 9:
+    username = username[:8] + '...'
+  msg = formatstr.format(username, 
+                        total['done'], 
                         total['run'], 
                         total['idle'], 
                         total['hold'], 
@@ -99,7 +99,6 @@ Current commands:
   - `!job username`    : Display status of all jobs for `username`
   - `!!username`       : Display status of most recent job for `username`
   - `!update`          : Force update of the status summary channel
-  - `!setupdatetimer x`: Set frequency of status summary auto-refresh (in minutes)
   - `!help`            : Display this message
 
 Only usernames allowed by the `CREDENTIALS` file can be queried.
