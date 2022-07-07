@@ -13,6 +13,7 @@ echo "\nBe sure to fill in your details in CREDENTIALS.py!"
 touch CREDENTIALS.py
 echo \# SSH Key will typically be in /Users/USERNAME/.ssh/id_rsa > CREDENTIALS.py
 echo PATH_TO_SSH_KEY=\"complete/path/to/ssh/key\" >> CREDENTIALS.py
+echo SSHKEY_PWD=None >> CREDENTIALS.py
 echo \\n\# This can be found or created at https://discord.com/developers/applications >> CREDENTIALS.py
 echo DISCORD_BOT_TOKEN=\"YOUR KEY HERE\" >> CREDENTIALS.py 
 echo \\n\# OSG Login Info >> CREDENTIALS.py

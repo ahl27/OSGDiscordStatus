@@ -38,7 +38,7 @@ def datestring_to_datetime(dstr):
 
 # Open ssh connection
 def open_ssh_connection():
-  k = paramiko.RSAKey.from_private_key_file(CREDENTIALS.PATH_TO_SSH_KEY)
+  k = paramiko.RSAKey.from_private_key_file(CREDENTIALS.PATH_TO_SSH_KEY, password=CREDENTIALS.SSHKEY_PWD)
   client = paramiko.SSHClient()
   client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
   print("Connecting to host " + OSGNODE + " with username '" + OSGUSERNAME + "'...")
