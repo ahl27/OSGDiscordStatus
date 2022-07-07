@@ -1,0 +1,10 @@
+[Unit]
+Description=Discord bot to monitor OSG tasks
+
+[Service]
+User=USERNAME
+WorkingDirectory=/home/USER
+ExecStart=/usr/bin/python3 /home/USER/OSGDiscordBot.py
+
+[Install]
+WantedBy=multi-user.target

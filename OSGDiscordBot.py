@@ -10,7 +10,8 @@ DISCORD_TOKEN = CREDENTIALS.DISCORD_BOT_TOKEN
 OSGUSERNAME = CREDENTIALS.OSGLOGIN
 OSGNODE = CREDENTIALS.OSGNODE
 USERNAMES = CREDENTIALS.USERS_TO_CHECK
-REFRESH_TIME = CREDENTIALS.REFRESH_TIME
+STATUS_REFRESH_TIME = CREDENTIALS.STATUS_REFRESH_TIME
+SSH_REFRESH_TIME = CREDENTIALS.SSH_REFRESH_TIME
 STATUS_CHANNEL_ID = CREDENTIALS.STATUS_CHANNEL_ID
 
 THUMBS_UP_EMOJI = '\N{THUMBS UP SIGN}'
@@ -93,13 +94,16 @@ def MSG_help_str():
   stringhelp = '''
 I can query OSG for the status of your jobs! 
 Current commands:
-  - `!all`         : Display summary of all lab members
-  - `!username`    : Display summary for `username`
-  - `!job username`: Display status of all jobs for `username`
-  - `!!username`   : Display status of most recent job for `username`
+  - `!all`             : Display summary of all lab members
+  - `!username`        : Display summary for `username`
+  - `!job username`    : Display status of all jobs for `username`
+  - `!!username`       : Display status of most recent job for `username`
+  - `!update`          : Force update of the status summary channel
+  - `!setupdatetimer x`: Set frequency of status summary auto-refresh (in minutes)
+  - `!help`            : Display this message
 
 Only usernames allowed by the `CREDENTIALS` file can be queried.
-Ask Aidan to add your name to the list if you can't query yourself.
+Ask an admin to add your name to the list if you can't query yourself.
 '''
   return(stringhelp)
 
@@ -215,10 +219,25 @@ if __name__ == '__main__':
   @client.event
   async def on_ready():
       print(f'Success! Logged in as {client.user}')
-      client.loop.create_task(refresh_loop())
+      client.loop.create_task(refresh_ssh())
+      await asyncio.sleep(5) # give it some time to establish initial ssh connection
+      client.loop.create_task(refresh_status())
 
   @client.event
-  async def refresh_loop():
+  async def refresh_status():
+    global sshconnection
+    global status_message
+    while True:
+      outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
+      if status_message is None:
+        statuschannel = client.get_channel(STATUS_CHANNEL_ID)
+        status_message = await statuschannel.send(outmsg)
+      else:
+        await status_message.edit(content=outmsg)
+      await asyncio.sleep(STATUS_REFRESH_TIME)
+
+  @client.event
+  async def refresh_ssh():
     global sshconnection
     global status_message
     while True:
@@ -226,13 +245,7 @@ if __name__ == '__main__':
         sshconnection.close()
         sshconnection = None
       sshconnection = open_ssh_connection()
-      outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
-      if status_message is None:
-        statuschannel = client.get_channel(STATUS_CHANNEL_ID)
-        status_message = await statuschannel.send(outmsg)
-      else:
-        await status_message.edit(content=outmsg)
-      await asyncio.sleep(REFRESH_TIME*60)
+      await asyncio.sleep(SSH_REFRESH_TIME*60)
 
   @client.event
   async def on_custom_event():
@@ -252,36 +265,61 @@ if __name__ == '__main__':
   @client.event
   async def on_message(message):
       if message.author == client.user:
+        return
+      if not message.content.startswith('!'):
+        return
+
+      ipt = message.content[1:]
+      if ipt == 'all':
+        outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
+      elif ipt == 'h' or ipt == 'help':
+        outmsg = MSG_help_str()
+      elif ipt == 'update':
+        await message.add_reaction(THUMBS_UP_EMOJI)
+        client.dispatch("custom_event")
+        return
+      elif ipt.startswith('setupdatetimer'):
+        ipt = ipt.split()
+        if len(ipt) != 2:
+          outmsg = "Please specify a time using `!setupdatetime <integer>`. Thanks!"
+          await message.channel.send(outmsg)
           return
-      if message.content.startswith('!'):
-        ipt = message.content[1:]
-        if ipt == 'all':
-          outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
-        elif ipt == 'h' or ipt == 'help':
-          outmsg = MSG_help_str()
-        elif ipt == 'update':
-          await message.add_reaction(THUMBS_UP_EMOJI)
-          client.dispatch("custom_event")
-          return()
+        ipt = ipt[1]
+        if not ipt.isdigit() or int(ipt) < 10:
+          outmsg = "Update time must be a positive integer at least 10."
+          await message.channel.send(outmsg)
+          return
         else:
-          mostrecent = False
-          alljobs = False
-          if ipt.startswith('!'):
-            mostrecent = True
-            ipt = ipt[1:]
-          elif ipt.startswith('job'):
-            alljobs = True
-            ipt = ipt.split()[1]
-          if ipt in USERNAMES:
-            if mostrecent:
-              outmsg = MSG_most_recent_job(sshconnection, ipt)
-            elif alljobs:
-              outmsg = MSG_all_user_jobs(sshconnection, ipt)
-            else:
-              outmsg = MSG_all_user_summaries(sshconnection, [ipt])
+          global STATUS_REFRESH_TIME
+          STATUS_REFRESH_TIME = int(ipt)
+          outmsg = "Refresh time set to " + ipt + " second(s). This will take effect after the next update."
+          await message.channel.send(outmsg)
+          return
+      else:
+        mostrecent = False
+        alljobs = False
+        if ipt.startswith('!'):
+          mostrecent = True
+          ipt = ipt[1:]
+        elif ipt.startswith('job'):
+          alljobs = True
+          ipt = ipt.split()
+          if len(ipt) != 2:
+            outmsg = "Please specify a username using `!job <username>`. Thanks!"
+            await message.channel.send(outmsg)
+            return
+          ipt = ipt[1]
+
+        if ipt in USERNAMES:
+          if mostrecent:
+            outmsg = MSG_most_recent_job(sshconnection, ipt)
+          elif alljobs:
+            outmsg = MSG_all_user_jobs(sshconnection, ipt)
           else:
-            outmsg = "Error: username `" + ipt + "` is not allowed to be queried."
-        await message.channel.send(outmsg) 
+            outmsg = MSG_all_user_summaries(sshconnection, [ipt])
+        else:
+          outmsg = "Error: username `" + ipt + "` is not allowed to be queried."
+      await message.channel.send(outmsg) 
 
 
   client.run(DISCORD_TOKEN)

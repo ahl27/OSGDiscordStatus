@@ -4,6 +4,7 @@
 echo "Installing python discord API..."
 python3 -m pip install -U discord.py
 python3 -m pip install paramiko
+python3 -m pip install asyncio
 
 echo "\nDone!\n"
 echo "YOU WILL NEED AN API KEY TO RUN THIS SCRIPT"
@@ -20,8 +21,10 @@ echo OSGLOGIN=\"USERNAME\" >> CREDENTIALS.py
 echo OSGNODE=\"loginXX.osgconnect.net\" >> CREDENTIALS.py
 echo \\n\# Comma-separated list of all usernames to check >> CREDENTIALS.py
 echo USERS_TO_CHECK=[\"EXAMPLEUSER1\", \"EXAMPLEUSER2\"] >> CREDENTIALS.py
-echo \\n\# Length of time (in minutes) between refresh cycles >> CREDENTIALS.py
-echo REFRESH_TIME=10 >> CREDENTIALS.py
+echo \\n\# Length of time (in seconds) between status refresh cycles >> CREDENTIALS.py
+echo STATUS_REFRESH_TIME=30 >> CREDENTIALS.py
+echo \# Length of time (in minutes) between ssh refresh cycles >> CREDENTIALS.py
+echo SSH_REFRESH_TIME=5 >> CREDENTIALS.py
 echo \\n\# 18 digit ID of status channel, can be found on Discord >> CREDENTIALS.py
 echo STATUS_CHANNEL_ID=000000000000000000 >> CREDENTIALS.py
 
