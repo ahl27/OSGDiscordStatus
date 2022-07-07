@@ -53,7 +53,7 @@ def MSG_all_user_summaries(client, usernames_lst):
     return("Error: SSH Client not established.")
   formatstr = "{:>10} | {:>7} | {:>6} | {:>6} | {:>7} | {:>7}"
   totalmsg = '```\n' + formatstr.format("USERNAME", "DONE","RUN","IDLE","HELD","TOTAL") + '\n'
-  totalmsg += '-'*(longestuser + 15 + 7 + 6 + 6 + 7 + 7) + '\n'
+  totalmsg += '-'*(10 + 15 + 7 + 6 + 6 + 7 + 7) + '\n'
   for username in usernames_lst:
     totalmsg += MSG_user_summary(client, username, formatstr)
   totalmsg += '```\n'
@@ -65,7 +65,7 @@ def MSG_user_summary(client, username, formatstr):
     return("Error: SSH Client not established.")
   jobs, total = get_jobs_for_user(client, username)
   if len(username) > 9:
-    username = username[:8] + '...'
+    username = username[:7] + '...'
   msg = formatstr.format(username, 
                         total['done'], 
                         total['run'], 
