@@ -232,11 +232,13 @@ def get_jobs_for_user(client, username):
 
   if len(retval) > 0:
     totaljobsqueued = sum([int(j['total']) for j in retval])
+    totaljobsdone = sum([int(j['done']) for j in retval])
   else:
     totaljobsqueued = 0
+    totaljobsdone = 0
   totalstats = {
     "total": totaljobsqueued,
-    "done": re.sub(".* ([0-9]*) completed,.*", '\\1', footer),
+    "done": totaljobsdone,
     "removed": re.sub(".* ([0-9]*) removed,.*", '\\1', footer),
     "run": re.sub(".* ([0-9]*) running,.*", '\\1', footer),
     "idle": re.sub(".* ([0-9]*) idle,.*", '\\1', footer),
