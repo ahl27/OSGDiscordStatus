@@ -230,8 +230,12 @@ def get_jobs_for_user(client, username):
 
       retval.append(curJob)
 
+  if len(retval) > 0:
+    totaljobsqueued = sum([int(j['total']) for j in retval])
+  else:
+    totaljobsqueued = 0
   totalstats = {
-    "total": re.sub(".*query: ([0-9]*) jobs;.*", '\\1', footer),
+    "total": totaljobsqueued,
     "done": re.sub(".* ([0-9]*) completed,.*", '\\1', footer),
     "removed": re.sub(".* ([0-9]*) removed,.*", '\\1', footer),
     "run": re.sub(".* ([0-9]*) running,.*", '\\1', footer),
@@ -243,7 +247,7 @@ def get_jobs_for_user(client, username):
   return(retval, totalstats)
 
 
-
+# testing block
 if __name__ == '!__main__':
   print("Opening SSH connection...")
   sshconnection = open_ssh_connection()
@@ -253,6 +257,7 @@ if __name__ == '!__main__':
   #print(MSG_all_user_jobs(sshconnection, 'ahl'))
   #print(MSG_all_user_summaries(sshconnection, ['ahl']))
 
+# execution block, should split this up someday
 if __name__ == '__main__':
   #print("Opening SSH connection...")
   #sshconnection = open_ssh_connection()
