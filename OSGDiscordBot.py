@@ -19,7 +19,8 @@ RESPONSE_CHANNEL_ID = CREDENTIALS.RESPONSE_CHANNEL_ID
 THUMBS_UP_EMOJI = '\N{THUMBS UP SIGN}'
 
 lastupdate = [datetime.now() for i in range(len(USERNAMES))]
-lastseen = [0 for i in range(len(USERNAMES))]
+has_running_jobs = {user: False for user in USERNAMES}
+has_running_update = {user: False for user in USERNAMES}
 ssh_reconnect = datetime.now()
 sshconnection = None
 status_message = None
@@ -103,6 +104,8 @@ def MSG_all_mobile_summaries(client, usernames_lst):
   formatstr = "{:>4} {:>4} {:>4} {:>4} {:>4} {:>5}"
   totalmsg = '```\n' + formatstr.format("USER","DONE","RUN","IDLE","HELD","TOTAL") + '\n'
   totalmsg += '-'*(30) + '\n'
+  if checkChanges:
+    newJobsState = [False for i in usernames_lst] 
   for username in usernames_lst:
     totalmsg += MSG_mobile_summary(client, username, formatstr)
   totalmsg += '```\n'
@@ -185,6 +188,7 @@ def MSG_most_recent_job(client, username):
 
 # Generate a dictionary of jobs for a given user
 def get_jobs_for_user(client, username):
+  global has_running_update
   jobentry = {
     "batch_name": '',
     "submitted": '',
@@ -197,6 +201,7 @@ def get_jobs_for_user(client, username):
   }
   k = jobentry.keys()
   retval = []
+  hasJobs = False
 
   command = 'condor_q ' + username
   stdin, stdout, stderr = client.exec_command(command)
@@ -233,9 +238,11 @@ def get_jobs_for_user(client, username):
   if len(retval) > 0:
     totaljobsqueued = sum([int(j['total']) for j in retval])
     totaljobsdone = sum([int(j['done']) for j in retval])
+    has_running_update[username] = True
   else:
     totaljobsqueued = 0
     totaljobsdone = 0
+    has_running_update[username] = False
   totalstats = {
     "total": totaljobsqueued,
     "done": totaljobsdone,
@@ -289,6 +296,25 @@ if __name__ == '__main__':
           mobile_status_message = await mobilechannel.send(outmsg)
         else:
           await status_message.edit(content=outmsg)
+
+      if RESPONSE_CHANNEL_ID is not None:
+        rchannel = client.get_channel(RESPONSE_CHANNEL_ID)
+        # Send notification if job status has changed
+        global has_running_update
+        global has_running_jobs
+
+        # local just in case something changes, want to be careful with asyncs
+        local_hru = has_running_update
+        local_hrj = has_running_jobs
+        for user in USERNAMES:
+          if local_hrj[user] != local_hru[user]:
+            if (has_running_update):
+              outmsg = '`' + user + "` launched new jobs!"
+            else:
+              outmsg = '`' + user + "`'s jobs have finished!"
+            await rchannel.send(outmsg)
+            has_running_update[user] = local_hrj[user]
+
       await asyncio.sleep(STATUS_REFRESH_TIME)
 
   @client.event
