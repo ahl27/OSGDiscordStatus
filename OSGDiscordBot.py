@@ -21,6 +21,7 @@ THUMBS_UP_EMOJI = '\N{THUMBS UP SIGN}'
 lastupdate = [datetime.now() for i in range(len(USERNAMES))]
 has_running_jobs = {user: False for user in USERNAMES}
 has_running_update = {user: False for user in USERNAMES}
+notif_list = {user: [] for user in USERNAMES}
 ssh_reconnect = datetime.now()
 sshconnection = None
 status_message = None
@@ -104,8 +105,7 @@ def MSG_all_mobile_summaries(client, usernames_lst):
   formatstr = "{:>4} {:>4} {:>4} {:>4} {:>4} {:>5}"
   totalmsg = '```\n' + formatstr.format("USER","DONE","RUN","IDLE","HELD","TOTAL") + '\n'
   totalmsg += '-'*(30) + '\n'
-  if checkChanges:
-    newJobsState = [False for i in usernames_lst] 
+
   for username in usernames_lst:
     totalmsg += MSG_mobile_summary(client, username, formatstr)
   totalmsg += '```\n'
@@ -149,6 +149,8 @@ Current commands:
   - `!username`        : Display summary for `username`
   - `!job username`    : Display status of all jobs for `username`
   - `!!username`       : Display status of most recent job for `username`
+  - `!notifyme user`   : Ping me whenever job status changes for `user`
+  - `!unnotifyme user` : Stop pinging me whenever job status changes for `user`
   - `!update`          : Force update of the status summary channel
   - `!help`            : Display this message
 
@@ -279,6 +281,7 @@ if __name__ == '__main__':
   async def refresh_status():
     global sshconnection
     global status_message
+    global mobile_status_message
     while True:
       # Update status channel message
       if STATUS_CHANNEL_ID is not None:
@@ -295,7 +298,7 @@ if __name__ == '__main__':
           mobilechannel = client.get_channel(MOBILE_CHANNEL_ID)
           mobile_status_message = await mobilechannel.send(outmsg)
         else:
-          await status_message.edit(content=outmsg)
+          await mobile_status_message.edit(content=outmsg)
 
       if RESPONSE_CHANNEL_ID is not None:
         rchannel = client.get_channel(RESPONSE_CHANNEL_ID)
@@ -308,19 +311,22 @@ if __name__ == '__main__':
         local_hrj = has_running_jobs
         for user in USERNAMES:
           if local_hrj[user] != local_hru[user]:
-            if (has_running_update):
-              outmsg = '`' + user + "` launched new jobs!"
+            if len(notif_list[user]) != 0:
+              notifystring = ' '.join([u.mention for u in notif_list[user]])
             else:
-              outmsg = '`' + user + "`'s jobs have finished!"
+              notifystring = ''
+            if (has_running_update):
+              outmsg = '`' + user + "` launched new jobs!\n" + notifystring
+            else:
+              outmsg = '`' + user + "`'s jobs have finished!\n" + notifystring
             await rchannel.send(outmsg)
-            has_running_update[user] = local_hrj[user]
+        has_running_update = has_running_jobs
 
       await asyncio.sleep(STATUS_REFRESH_TIME)
 
   @client.event
   async def refresh_ssh():
     global sshconnection
-    global status_message
     while True:
       if sshconnection is not None:
         sshconnection.close()
@@ -355,7 +361,7 @@ if __name__ == '__main__':
         mobilechannel = client.get_channel(MOBILE_CHANNEL_ID)
         mobile_status_message = await mobilechannel.send(outmsg)
       else:
-        await status_message.edit(content=outmsg)
+        await mobile_status_message.edit(content=outmsg)
 
   @client.event
   async def on_message(message):
@@ -369,12 +375,18 @@ if __name__ == '__main__':
       rchannel = RESPONSE_CHANNEL_ID if RESPONSE_CHANNEL_ID is not None else message.channel
       if ipt == 'all':
         outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
+
+      ## HELP MESSAGE
       elif ipt == 'h' or ipt == 'help':
         outmsg = MSG_help_str()
+      
+      ## FORCE UPDATE
       elif ipt == 'update':
         await message.add_reaction(THUMBS_UP_EMOJI)
         client.dispatch("custom_event")
         return
+      
+      ## SET UPDATE TIMER
       elif ipt.startswith('setupdatetimer'):
         ipt = ipt.split()
         if len(ipt) != 2:
@@ -392,6 +404,46 @@ if __name__ == '__main__':
           outmsg = "Refresh time set to " + ipt + " second(s). This will take effect after the next update."
           await message.channel.send(outmsg)
           return
+      
+      ## SET NOTIFICATIONS
+      elif ipt.startswith('notifyme') or ipt.startswith('unnotifyme'):
+        ipt = ipt.split()
+        if ipt.startswith('notifyme'):
+          addnotif = True
+          strerr = "Please specify a username with `!notifyme <username>`. Thanks!"
+        else:
+          addnotif = False
+          strerr = "Please specify a username with `!unnotifyme <username>`. Thanks!"
+        if len(ipt) != 2:
+          await message.channel.send(strerr)
+          return
+        ipt = ipt[1]
+        if ipt not in USERNAMES:
+          await message.channel.send("Error: I can't find that username!")
+          return
+        else:
+          global notif_list
+          sender = message.author
+          curlist = notif_list[ipt]
+          if sender in curlist and addnotif:
+            outmsg = "You're already being notified of `" + username + "`'s updates."
+            await message.chanel.send(outmsg)
+            return
+          elif sender not in curlist and not addnotif:
+            outmsg = "You're not being notified of `" + username + "`'s updates."
+            await message.chanel.send(outmsg)
+            return
+          elif addnotif:
+            curlist.append(sender)
+            outmsg = "Got it, I'll notify you of `" + username + "`'s updates."
+          else:
+            curlist.remove(sender)
+            outmsg = "Got it, I'll stop notifying you of `" + username + "`'s updates."
+          notif_list[ipt] = curlist
+          await message.chanel.send(outmsg)
+          return
+
+      ## RESPOND TO MESSAGES
       else:
         mostrecent = False
         alljobs = False
