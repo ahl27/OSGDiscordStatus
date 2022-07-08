@@ -13,6 +13,7 @@ USERNAMES = CREDENTIALS.USERS_TO_CHECK
 STATUS_REFRESH_TIME = CREDENTIALS.STATUS_REFRESH_TIME
 SSH_REFRESH_TIME = CREDENTIALS.SSH_REFRESH_TIME
 STATUS_CHANNEL_ID = CREDENTIALS.STATUS_CHANNEL_ID
+MOBILE_CHANNEL_ID = CREDENTIALS.MOBILE_CHANNEL_ID
 
 THUMBS_UP_EMOJI = '\N{THUMBS UP SIGN}'
 
@@ -21,6 +22,7 @@ lastseen = [0 for i in range(len(USERNAMES))]
 ssh_reconnect = datetime.now()
 sshconnection = None
 status_message = None
+mobile_status_message = None
 
 
 # Converts datestring from OSG to a datetime object
@@ -72,6 +74,51 @@ def MSG_user_summary(client, username, formatstr):
                         total['idle'], 
                         total['hold'], 
                         total['total'])
+  msg += '\n'
+  return(msg)
+
+# Converts numbers to a smaller representation
+#   used to truncate to human-readable amounts 
+#   for mobile displays
+def fmt_mobile_num(num, maxchar):
+  suff = ['', 'K', 'M']
+  val = float(num)
+  for suffix in suff:
+    if val < 1000:
+      if suffix == '':
+        return(str(int(val)))
+      sufflen = len(suffix)
+      vallen = len(str(int(val)))
+      declen = max(maxchar-(sufflen+vallen+1), 0)
+      fs = "{:" + str(vallen) + '.' + str(declen) + 'f}{}'
+      return(fs.format(val, suffix))
+    val /= 1000
+
+def MSG_all_mobile_summaries(client, usernames_lst):
+  # ios mobile has 32 characters total of width
+  # I'm using 30 for a little buffer
+  if client is None:
+    return("Error: SSH Client not established.")
+  formatstr = "{:>4} {:>4} {:>4} {:>4} {:>4} {:>5}"
+  totalmsg = '```\n' + formatstr.format("USER","DONE","RUN","IDLE","HELD","TOTAL") + '\n'
+  totalmsg += '-'*(30) + '\n'
+  for username in usernames_lst:
+    totalmsg += MSG_mobile_summary(client, username, formatstr)
+  totalmsg += '```\n'
+  return(totalmsg)
+
+def MSG_mobile_summary(client, username, formatstr):
+  if client is None:
+    return("Error: SSH Client not established.")
+  jobs, total = get_jobs_for_user(client, username)
+  if len(username) > 3:
+    username = username[:3]
+  msg = formatstr.format(username, 
+                        fmt_mobile_num(total['done'], 4), 
+                        fmt_mobile_num(total['run'], 4), 
+                        fmt_mobile_num(total['idle'], 4), 
+                        fmt_mobile_num(total['hold'], 4), 
+                        fmt_mobile_num(total['total'], 5))
   msg += '\n'
   return(msg)
 
@@ -200,10 +247,10 @@ if __name__ == '!__main__':
   print("Opening SSH connection...")
   sshconnection = open_ssh_connection()
   #gend_msg = get_all_jobs_status(sshconnection)
-  print(MSG_all_user_summaries(sshconnection, USERNAMES))
-  print(MSG_most_recent_job(sshconnection, 'ahl'))
-  print(MSG_all_user_jobs(sshconnection, 'ahl'))
-  print(MSG_all_user_summaries(sshconnection, ['ahl']))
+  print(MSG_all_mobile_summaries(sshconnection, USERNAMES))
+  #print(MSG_most_recent_job(sshconnection, 'ahl'))
+  #print(MSG_all_user_jobs(sshconnection, 'ahl'))
+  #print(MSG_all_user_summaries(sshconnection, ['ahl']))
 
 if __name__ == '__main__':
   #print("Opening SSH connection...")
@@ -220,19 +267,30 @@ if __name__ == '__main__':
       print(f'Success! Logged in as {client.user}')
       client.loop.create_task(refresh_ssh())
       await asyncio.sleep(5) # give it some time to establish initial ssh connection
-      client.loop.create_task(refresh_status())
+      if STATUS_CHANNEL_ID is not None and MOBILE_CHANNEL_ID is not None:
+        client.loop.create_task(refresh_status())
 
   @client.event
   async def refresh_status():
     global sshconnection
     global status_message
     while True:
-      outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
-      if status_message is None:
-        statuschannel = client.get_channel(STATUS_CHANNEL_ID)
-        status_message = await statuschannel.send(outmsg)
-      else:
-        await status_message.edit(content=outmsg)
+      # Update status channel message
+      if STATUS_CHANNEL_ID is not None:
+        outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
+        if status_message is None:
+          statuschannel = client.get_channel(STATUS_CHANNEL_ID)
+          status_message = await statuschannel.send(outmsg)
+        else:
+          await status_message.edit(content=outmsg)
+      # Update mobile channel message
+      if MOBILE_CHANNEL_ID is not None:
+        outmsg = MSG_all_mobile_summaries(sshconnection, USERNAMES)
+        if mobile_status_message is None:
+          mobilechannel = client.get_channel(MOBILE_CHANNEL_ID)
+          mobile_status_message = await mobilechannel.send(outmsg)
+        else:
+          await status_message.edit(content=outmsg)
       await asyncio.sleep(STATUS_REFRESH_TIME)
 
   @client.event
@@ -250,16 +308,30 @@ if __name__ == '__main__':
   async def on_custom_event():
     global sshconnection
     global status_message
+
+    # Refresh SSH connection
     if sshconnection is not None:
       sshconnection.close()
       sshconnection = None
     sshconnection = open_ssh_connection()
-    outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
-    if status_message is None:
-      statuschannel = client.get_channel(STATUS_CHANNEL_ID)
-      status_message = await statuschannel.send(outmsg)
-    else:
-      await status_message.edit(content=outmsg)
+    
+    # Update status channel
+    if STATUS_CHANNEL_ID is not None:
+      outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
+      if status_message is None:
+        statuschannel = client.get_channel(STATUS_CHANNEL_ID)
+        status_message = await statuschannel.send(outmsg)
+      else:
+        await status_message.edit(content=outmsg)
+
+    # Update mobile-formatted channel
+    if MOBILE_CHANNEL_ID is not None:
+      outmsg = MSG_all_mobile_summaries(sshconnection, USERNAMES)
+      if mobile_status_message is None:
+        mobilechannel = client.get_channel(MOBILE_CHANNEL_ID)
+        mobile_status_message = await mobilechannel.send(outmsg)
+      else:
+        await status_message.edit(content=outmsg)
 
   @client.event
   async def on_message(message):

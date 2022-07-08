@@ -25,6 +25,13 @@ echo "\\n# Length of time (in seconds) between status refresh cycles" >> CREDENT
 echo STATUS_REFRESH_TIME=30 >> CREDENTIALS.py
 echo "# Length of time (in minutes) between ssh refresh cycles" >> CREDENTIALS.py
 echo SSH_REFRESH_TIME=5 >> CREDENTIALS.py
-echo \\n\# 18 digit ID of status channel, can be found on Discord >> CREDENTIALS.py
-echo STATUS_CHANNEL_ID=000000000000000000 >> CREDENTIALS.py
 
+echo \\n\# REGULARLY UPDATED CHANNELS >> CREDENTIALS.py
+echo \# Set to None to disable this functionality >> CREDENTIALS.py
+echo \# ex:  >> CREDENTIALS.py
+echo \#\\t STATUS_CHANNEL_ID=None >> CREDENTIALS.py
+echo \#\\t STATUS_CHANNEL_ID=000000000000000000 >> CREDENTIALS.py
+echo \# 18 digit ID of status channel, can be found on Discord >> CREDENTIALS.py
+echo STATUS_CHANNEL_ID=None >> CREDENTIALS.py
+echo \# 18 digit ID of mobile-formatted status channel, can be found on Discord >> CREDENTIALS.py
+echo STATUS_CHANNEL_ID=None >> CREDENTIALS.py
