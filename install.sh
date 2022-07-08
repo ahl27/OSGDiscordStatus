@@ -34,4 +34,6 @@ echo \#\\t STATUS_CHANNEL_ID=000000000000000000 >> CREDENTIALS.py
 echo \# 18 digit ID of status channel, can be found on Discord >> CREDENTIALS.py
 echo STATUS_CHANNEL_ID=None >> CREDENTIALS.py
 echo \# 18 digit ID of mobile-formatted status channel, can be found on Discord >> CREDENTIALS.py
-echo STATUS_CHANNEL_ID=None >> CREDENTIALS.py
+echo MOBILE_CHANNEL_ID=None >> CREDENTIALS.py
+echo \# 18 digit ID of dedicated response channel, set to None to respond in whatever channel commands are placed >> CREDENTIALS.py
+echo RESPONSE_CHANNEL_ID=None >> CREDENTIALS.py

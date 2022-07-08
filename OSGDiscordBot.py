@@ -14,6 +14,7 @@ STATUS_REFRESH_TIME = CREDENTIALS.STATUS_REFRESH_TIME
 SSH_REFRESH_TIME = CREDENTIALS.SSH_REFRESH_TIME
 STATUS_CHANNEL_ID = CREDENTIALS.STATUS_CHANNEL_ID
 MOBILE_CHANNEL_ID = CREDENTIALS.MOBILE_CHANNEL_ID
+RESPONSE_CHANNEL_ID = CREDENTIALS.RESPONSE_CHANNEL_ID
 
 THUMBS_UP_EMOJI = '\N{THUMBS UP SIGN}'
 
@@ -341,6 +342,8 @@ if __name__ == '__main__':
         return
 
       ipt = message.content[1:]
+      # dedicated response channel if requested
+      rchannel = RESPONSE_CHANNEL_ID if RESPONSE_CHANNEL_ID is not None else message.channel
       if ipt == 'all':
         outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
       elif ipt == 'h' or ipt == 'help':
@@ -377,6 +380,7 @@ if __name__ == '__main__':
           ipt = ipt.split()
           if len(ipt) != 2:
             outmsg = "Please specify a username using `!job <username>`. Thanks!"
+            # Corrections to commands will always be sent in-context
             await message.channel.send(outmsg)
             return
           ipt = ipt[1]
@@ -390,7 +394,7 @@ if __name__ == '__main__':
             outmsg = MSG_all_user_summaries(sshconnection, [ipt])
         else:
           outmsg = "Error: username `" + ipt + "` is not allowed to be queried."
-      await message.channel.send(outmsg) 
+      await rchannel.send(outmsg) 
 
 
   client.run(DISCORD_TOKEN)
