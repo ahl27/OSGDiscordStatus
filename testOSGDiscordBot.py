@@ -274,10 +274,10 @@ if __name__ == '__main__':
   @client.event
   async def on_ready():
       print(f'Success! Logged in as {client.user}')
-      client.loop.create_task(refresh_ssh())
-      await asyncio.sleep(5) # give it some time to establish initial ssh connection
-      if STATUS_CHANNEL_ID is not None and MOBILE_CHANNEL_ID is not None:
-        client.loop.create_task(refresh_status())
+#      client.loop.create_task(refresh_ssh())
+#      await asyncio.sleep(5) # give it some time to establish initial ssh connection
+#      if STATUS_CHANNEL_ID is not None and MOBILE_CHANNEL_ID is not None:
+#        client.loop.create_task(refresh_status())
 
   @client.event
   async def refresh_status():
@@ -371,9 +371,12 @@ if __name__ == '__main__':
         return
       if not message.content.startswith('!'):
         return
-
+      
+      global notif_list
+      print(notif_list)
       ipt = message.content[1:]
-      # dedicated response channel if requested
+      print(ipt) 
+     # dedicated response channel if requested
       rchannel = client.get_channel(RESPONSE_CHANNEL_ID) if RESPONSE_CHANNEL_ID is not None else message.channel
       if ipt == 'all':
         outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
@@ -424,7 +427,7 @@ if __name__ == '__main__':
           await message.channel.send("Error: I can't find that username!")
           return
         else:
-          global notif_list
+#          global notif_list
           username = ipt
           sender = message.author
           curlist = notif_list[ipt]
@@ -448,6 +451,7 @@ if __name__ == '__main__':
 
       ## RESPOND TO MESSAGES
       else:
+        return
         mostrecent = False
         alljobs = False
         if ipt.startswith('!'):
