@@ -22,6 +22,7 @@ THUMBS_UP_EMOJI = '\N{THUMBS UP SIGN}'
 lastupdate = [datetime.now() for i in range(len(USERNAMES))]
 has_running_jobs = {user: False for user in USERNAMES}
 has_running_update = {user: False for user in USERNAMES}
+first_update = True
 
 has_high_held_jobs = {user: False for user in USERNAMES}
 has_alerted_held = {user: False for user in USERNAMES}
@@ -304,6 +305,7 @@ if __name__ == '__main__':
     global update_ctr
     global has_high_held_jobs
     global has_alerted_held
+    global first_update
     while True:
       statuslog = []
       # Update status channel message
@@ -352,8 +354,9 @@ if __name__ == '__main__':
               outmsg = '`' + user + "` launched new jobs!\n" + notifystring
             else:
               outmsg = '`' + user + "`'s jobs have finished!\n" + notifystring
-            await rchannel.send(outmsg)
-            statuslog.append('- User ' + user + ' had a change in job status')
+            if not first_update:
+              await rchannel.send(outmsg)
+              statuslog.append('- User ' + user + ' had a change in job status')
         has_running_update = has_running_jobs
       
         # Check for high held jobs
@@ -364,11 +367,12 @@ if __name__ == '__main__':
             else:
               notifystring = ''
             outmsg = 'ALERT: `' + user + "` has high held jobs.\n" + notifystring
-            await rchannel.send(outmsg)
+            if not first_update:
+              await rchannel.send(outmsg)
             has_alerted_held[user] = True
             statuslog.append('- User ' + user + ' had high held jobs')
 
-
+      first_update = False
       if update_ctr == 0:
         print("\n".join(statuslog))
       update_ctr = (update_ctr + 1) % 1
