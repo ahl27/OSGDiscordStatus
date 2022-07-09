@@ -374,6 +374,7 @@ if __name__ == '__main__':
 
       ipt = message.content[1:]
       # dedicated response channel if requested
+
       rchannel = client.get_channel(RESPONSE_CHANNEL_ID) if RESPONSE_CHANNEL_ID is not None else message.channel
       if ipt == 'all':
         outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
@@ -425,6 +426,7 @@ if __name__ == '__main__':
           return
         else:
           global notif_list
+
           username = ipt
           sender = message.author
           curlist = notif_list[ipt]
@@ -443,6 +445,7 @@ if __name__ == '__main__':
             curlist.remove(sender)
             outmsg = "Got it, I'll stop notifying you of `" + username + "`'s updates."
           notif_list[ipt] = curlist
+
           await message.channel.send(outmsg)
           return
 
