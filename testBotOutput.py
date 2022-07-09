@@ -1,4 +1,4 @@
-from OSGDiscordBot import *
+from ..OSGDiscordBot import *
 
 # testing block
 if __name__ == '__main__':

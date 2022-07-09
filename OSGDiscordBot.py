@@ -15,17 +15,24 @@ SSH_REFRESH_TIME = CREDENTIALS.SSH_REFRESH_TIME
 STATUS_CHANNEL_ID = CREDENTIALS.STATUS_CHANNEL_ID
 MOBILE_CHANNEL_ID = CREDENTIALS.MOBILE_CHANNEL_ID
 RESPONSE_CHANNEL_ID = CREDENTIALS.RESPONSE_CHANNEL_ID
+HOLD_ALERT_RANGE = CREDENTIALS.HOLD_ALERT_RANGE
 
 THUMBS_UP_EMOJI = '\N{THUMBS UP SIGN}'
 
 lastupdate = [datetime.now() for i in range(len(USERNAMES))]
 has_running_jobs = {user: False for user in USERNAMES}
 has_running_update = {user: False for user in USERNAMES}
+
+has_high_held_jobs = {user: False for user in USERNAMES}
+has_alerted_held = {user: False for user in USERNAMES}
+
+
 notif_list = {user: [] for user in USERNAMES}
 ssh_reconnect = datetime.now()
 sshconnection = None
-status_message = None
-mobile_status_message = None
+#status_message = None
+#mobile_status_message = None
+update_ctr = 0
 
 
 # Converts datestring from OSG to a datetime object
@@ -46,9 +53,9 @@ def open_ssh_connection():
   k = paramiko.RSAKey.from_private_key_file(CREDENTIALS.PATH_TO_SSH_KEY, password=CREDENTIALS.SSHKEY_PWD)
   client = paramiko.SSHClient()
   client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-  print("Connecting to host " + OSGNODE + " with username '" + OSGUSERNAME + "'...")
+  print("- Connecting to host " + OSGNODE + " with username '" + OSGUSERNAME + "'...")
   client.connect(hostname=OSGNODE, username=OSGUSERNAME, pkey=k)
-  print("Connected!")
+  print("- Connected to SSH!")
 
   return(client)
 
@@ -191,6 +198,8 @@ def MSG_most_recent_job(client, username):
 # Generate a dictionary of jobs for a given user
 def get_jobs_for_user(client, username):
   global has_running_update
+  global has_high_held_jobs
+  global has_alerted_held
   jobentry = {
     "batch_name": '',
     "submitted": '',
@@ -254,6 +263,15 @@ def get_jobs_for_user(client, username):
     "hold": re.sub(".* ([0-9]*) held,.*", '\\1', footer),
   }
 
+  if not has_high_held_jobs[username] and int(totalstats['hold']) > HOLD_ALERT_RANGE:
+    has_high_held_jobs[username] = True
+    print('- Noticed high held jobs for ' + username)
+
+  if has_high_held_jobs[username] and int(totalstats['hold']) == 0:
+    has_high_held_jobs[username] = False
+    has_alerted_held[username] = False
+    print('- Reset high held jobs for ' + username)
+
 
   return(retval, totalstats)
 
@@ -274,6 +292,7 @@ if __name__ == '__main__':
   @client.event
   async def on_ready():
       print(f'Success! Logged in as {client.user}')
+      print("Status Log:")
       client.loop.create_task(refresh_ssh())
       await asyncio.sleep(5) # give it some time to establish initial ssh connection
       if STATUS_CHANNEL_ID is not None and MOBILE_CHANNEL_ID is not None:
@@ -282,26 +301,38 @@ if __name__ == '__main__':
   @client.event
   async def refresh_status():
     global sshconnection
-    global status_message
-    global mobile_status_message
+    global update_ctr
+    global has_high_held_jobs
+    global has_alerted_held
     while True:
+      statuslog = []
       # Update status channel message
       if STATUS_CHANNEL_ID is not None:
+        schannel = client.get_channel(STATUS_CHANNEL_ID)
+        smsgid = schannel.last_message_id
         outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
-        if status_message is None:
-          statuschannel = client.get_channel(STATUS_CHANNEL_ID)
-          status_message = await statuschannel.send(outmsg)
+        if smsgid is None:
+          await schannel.send(outmsg)
+          statuslog.append('- Sent new status message')
         else:
-          await status_message.edit(content=outmsg)
+          smsg = await schannel.fetch_message(smsgid)
+          await smsg.edit(content=outmsg)
+          statuslog.append('- Edited status message ' + str(smsgid))
+
       # Update mobile channel message
       if MOBILE_CHANNEL_ID is not None:
+        mchannel = client.get_channel(MOBILE_CHANNEL_ID)
+        mmsgid = mchannel.last_message_id
         outmsg = MSG_all_mobile_summaries(sshconnection, USERNAMES)
-        if mobile_status_message is None:
-          mobilechannel = client.get_channel(MOBILE_CHANNEL_ID)
-          mobile_status_message = await mobilechannel.send(outmsg)
+        if mmsgid is None:
+          await mchannel.send(outmsg)
+          statuslog.append('- Sent new mobile message')
         else:
-          await mobile_status_message.edit(content=outmsg)
+          mmsg = await mchannel.fetch_message(mmsgid)
+          await mmsg.edit(content=outmsg)
+          statuslog.append('- Edited mobile message ' + str(mmsgid))
 
+      # Check if job status has changed
       if RESPONSE_CHANNEL_ID is not None:
         rchannel = client.get_channel(RESPONSE_CHANNEL_ID)
         # Send notification if job status has changed
@@ -322,8 +353,25 @@ if __name__ == '__main__':
             else:
               outmsg = '`' + user + "`'s jobs have finished!\n" + notifystring
             await rchannel.send(outmsg)
+            statuslog.append('- User ' + user + ' had a change in job status')
         has_running_update = has_running_jobs
+      
+        # Check for high held jobs
+        for user in USERNAMES:
+          if has_high_held_jobs[user] and not has_alerted_held[user]:
+            if len(notif_list[user]) != 0:
+              notifystring = ' '.join([u.mention for u in notif_list[user]])
+            else:
+              notifystring = ''
+            outmsg = 'ALERT: `' + user + "` has high held jobs.\n" + notifystring
+            await rchannel.send(outmsg)
+            has_alerted_held[user] = True
+            statuslog.append('- User ' + user + ' had high held jobs')
 
+
+      if update_ctr == 0:
+        print("\n".join(statuslog))
+      update_ctr = (update_ctr + 1) % 1
       await asyncio.sleep(STATUS_REFRESH_TIME)
 
   @client.event
@@ -346,24 +394,33 @@ if __name__ == '__main__':
       sshconnection.close()
       sshconnection = None
     sshconnection = open_ssh_connection()
+    print('- Updated SSH connection [FORCED]')
     
     # Update status channel
     if STATUS_CHANNEL_ID is not None:
+      schannel = client.get_channel(STATUS_CHANNEL_ID)
+      smsgid = schannel.last_message_id
       outmsg = MSG_all_user_summaries(sshconnection, USERNAMES)
-      if status_message is None:
-        statuschannel = client.get_channel(STATUS_CHANNEL_ID)
-        status_message = await statuschannel.send(outmsg)
+      if smsgid is None:
+        await schannel.send(outmsg)
+        print('- Sent new status message [FORCED]')
       else:
-        await status_message.edit(content=outmsg)
+        smsg = await schannel.fetch_message(smsgid)
+        await smsg.edit(content=outmsg)
+        print('- Edited status message ' + str(smsgid) + ' [FORCED')
 
-    # Update mobile-formatted channel
+    # Update mobile channel message
     if MOBILE_CHANNEL_ID is not None:
+      mchannel = client.get_channel(MOBILE_CHANNEL_ID)
+      mmsgid = mchannel.last_message_id
       outmsg = MSG_all_mobile_summaries(sshconnection, USERNAMES)
-      if mobile_status_message is None:
-        mobilechannel = client.get_channel(MOBILE_CHANNEL_ID)
-        mobile_status_message = await mobilechannel.send(outmsg)
+      if mmsgid is None:
+        await mchannel.send(outmsg)
+        print('- Sent new mobile message [FORCED]')
       else:
-        await mobile_status_message.edit(content=outmsg)
+        mmsg = await mchannel.fetch_message(mmsgid)
+        await mmsg.edit(content=outmsg)
+        print('- Edited mobile message ' + str(mmsgid) + '[FORCED]')
 
   @client.event
   async def on_message(message):
