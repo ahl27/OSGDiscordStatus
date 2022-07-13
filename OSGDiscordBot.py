@@ -1,4 +1,5 @@
 import discord
+from discord.ext import tasks
 import subprocess
 import paramiko
 import asyncio
@@ -31,6 +32,8 @@ has_alerted_held = {user: False for user in USERNAMES}
 notif_list = {user: [] for user in USERNAMES}
 ssh_reconnect = datetime.now()
 sshconnection = None
+status_task = None
+ssh_task = None
 #status_message = None
 #mobile_status_message = None
 update_ctr = 0
@@ -292,12 +295,28 @@ if __name__ == '__main__':
 
   @client.event
   async def on_ready():
+      global ssh_task
+      global status_task
       print(f'Success! Logged in as {client.user}')
       print("Status Log:")
-      client.loop.create_task(refresh_ssh())
-      await asyncio.sleep(5) # give it some time to establish initial ssh connection
+      ssh_task = client.loop.create_task(refresh_ssh())
+      await asyncio.sleep(2) # give it some time to establish initial ssh connection
       if STATUS_CHANNEL_ID is not None and MOBILE_CHANNEL_ID is not None:
-        client.loop.create_task(refresh_status())
+        status_task = client.loop.create_task(refresh_status())
+
+  @client.event
+  async def on_error(event, *args, **kwargs):
+    global ssh_task
+    global status_task
+    message=args[0]
+    print('- ERROR:' + args)
+    print('- Restarting jobs...')
+    ssh_task.cancel()
+    ssh_task = client.loop.create_task(refresh_ssh())
+    print('- SSH task restarted!')
+    await asyncio.sleep(2)
+    status_task.cancel()
+    status_task = client.loop.create_task(refresh_status())
 
   @client.event
   async def refresh_status():
